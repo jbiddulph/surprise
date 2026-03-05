@@ -30,14 +30,19 @@ export default defineEventHandler(async (event) => {
   }
 
   const imageIds = profile.images.map((image) => image.id)
-  const grouped = imageIds.length
-    ? await prisma.surpriseme_image_ratings.groupBy({
+  let grouped: Array<{ image_id: string; _avg: { rating: number | null }; _count: { _all: number } }> = []
+  if (imageIds.length) {
+    try {
+      grouped = await prisma.surpriseme_image_ratings.groupBy({
         by: ['image_id'],
         where: { image_id: { in: imageIds } },
         _avg: { rating: true },
         _count: { _all: true }
       })
-    : []
+    } catch {
+      grouped = []
+    }
+  }
 
   const statsByImageId = new Map(
     grouped.map((g) => [
