@@ -1,5 +1,6 @@
 import { prisma } from '../../utils/prisma'
 import { requireAuthUser } from '../../utils/auth'
+import { getSupabaseServiceClient } from '../../utils/supabase'
 
 type AggregateMap = Record<string, number>
 
@@ -55,7 +56,7 @@ export default defineEventHandler(async (event) => {
   const prediction = payload.prediction ?? {}
   const images = await prisma.surpriseme_profile_images.findMany({
     where: { profile_id: profile.id },
-    select: { id: true, image_url: true },
+    select: { id: true, image_url: true, storage_path: true },
     orderBy: { created_at: 'asc' }
   })
 
@@ -79,6 +80,32 @@ export default defineEventHandler(async (event) => {
     ])
   )
 
+  let supabase: ReturnType<typeof getSupabaseServiceClient> | null = null
+  try {
+    supabase = getSupabaseServiceClient()
+  } catch {
+    supabase = null
+  }
+
+  const imageRatings = await Promise.all(
+    images.map(async (image) => {
+      let resolvedUrl = image.image_url
+      if (supabase) {
+        const { data, error } = await supabase.storage.from('surpriseme_profiles').createSignedUrl(image.storage_path, 3600)
+        if (!error && data?.signedUrl) {
+          resolvedUrl = data.signedUrl
+        }
+      }
+
+      return {
+        image_id: image.id,
+        image_url: resolvedUrl,
+        avg_rating: ratingsByImageId.get(image.id)?.avg_rating ?? null,
+        rating_count: ratingsByImageId.get(image.id)?.rating_count ?? 0
+      }
+    })
+  )
+
   return {
     ...payload,
     expectation_vs_reality: {
@@ -95,12 +122,7 @@ export default defineEventHandler(async (event) => {
         actual: topLabel(aggregates.body_type_perception)
       }
     },
-    image_ratings: images.map((image) => ({
-      image_id: image.id,
-      image_url: image.image_url,
-      avg_rating: ratingsByImageId.get(image.id)?.avg_rating ?? null,
-      rating_count: ratingsByImageId.get(image.id)?.rating_count ?? 0
-    })),
+    image_ratings: imageRatings,
     confidence_boost_summary: createSummary(aggregates, prediction)
   }
 })

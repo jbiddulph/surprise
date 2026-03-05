@@ -1,5 +1,6 @@
 import { prisma } from '../../utils/prisma'
 import { requireAuthUser } from '../../utils/auth'
+import { getSupabaseServiceClient } from '../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuthUser(event)
@@ -31,5 +32,35 @@ export default defineEventHandler(async (event) => {
     orderBy: { created_at: 'desc' }
   })
 
-  return { account, profile, prediction }
+  const images = await prisma.surpriseme_profile_images.findMany({
+    where: { profile_id: profile.id },
+    select: { id: true, image_url: true, storage_path: true },
+    orderBy: { created_at: 'asc' }
+  })
+
+  let supabase: ReturnType<typeof getSupabaseServiceClient> | null = null
+  try {
+    supabase = getSupabaseServiceClient()
+  } catch {
+    supabase = null
+  }
+
+  const resolvedImages = await Promise.all(
+    images.map(async (image) => {
+      let resolvedUrl = image.image_url
+      if (supabase) {
+        const { data, error } = await supabase.storage.from('surpriseme_profiles').createSignedUrl(image.storage_path, 3600)
+        if (!error && data?.signedUrl) {
+          resolvedUrl = data.signedUrl
+        }
+      }
+
+      return {
+        id: image.id,
+        image_url: resolvedUrl
+      }
+    })
+  )
+
+  return { account, profile, prediction, images: resolvedImages }
 })
