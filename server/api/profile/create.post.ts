@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { prisma } from '../../utils/prisma'
 import { requireAuthUser } from '../../utils/auth'
+import { debugError, debugLog, debugStatusMessage, getRequestId } from '../../utils/debug'
 
 const bodySchema = z.object({
   display_name: z.string().min(2).max(80),
@@ -26,73 +27,103 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAuthUser(event)
-  const body = bodySchema.parse(await readBody(event))
+  const requestId = getRequestId(event)
 
-  await prisma.surpriseme_users.upsert({
-    where: { id: user.id },
-    create: {
-      id: user.id,
-      email: user.email ?? `${user.id}@placeholder.local`,
-      display_name: body.display_name,
-      gender_identity: body.gender_identity,
-      sexual_orientation: body.sexual_orientation,
-      age_range: body.age_range,
-      country: body.country
-    },
-    update: {
-      email: user.email ?? `${user.id}@placeholder.local`,
-      display_name: body.display_name,
-      gender_identity: body.gender_identity,
-      sexual_orientation: body.sexual_orientation,
-      age_range: body.age_range,
-      country: body.country
+  try {
+    debugLog(event, requestId, 'start')
+    const user = await requireAuthUser(event)
+    debugLog(event, requestId, 'auth.ok', { userId: user.id })
+
+    const rawBody = await readBody(event)
+    const parsed = bodySchema.safeParse(rawBody)
+    if (!parsed.success) {
+      debugLog(event, requestId, 'validation.failed', {
+        issues: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`)
+      })
+      throw createError({
+        statusCode: 400,
+        statusMessage: debugStatusMessage(event, requestId, 'Invalid profile payload')
+      })
     }
-  })
+    const body = parsed.data
+    debugLog(event, requestId, 'validation.ok')
 
-  const existingProfile = await prisma.surpriseme_profiles.findFirst({
-    where: { user_id: user.id },
-    orderBy: { created_at: 'asc' }
-  })
-
-  const profile = existingProfile
-    ? await prisma.surpriseme_profiles.update({
-        where: { id: existingProfile.id },
-        data: {
-          bio: body.bio,
-          height_range: body.height_range,
-          body_type: body.body_type,
-          fitness_level: body.fitness_level,
-          hair_colour: body.hair_colour,
-          eye_colour: body.eye_colour,
-          ethnicity: body.ethnicity,
-          is_public: body.is_public
-        }
-      })
-    : await prisma.surpriseme_profiles.create({
-        data: {
-          user_id: user.id,
-          bio: body.bio,
-          height_range: body.height_range,
-          body_type: body.body_type,
-          fitness_level: body.fitness_level,
-          hair_colour: body.hair_colour,
-          eye_colour: body.eye_colour,
-          ethnicity: body.ethnicity,
-          is_public: body.is_public
-        }
-      })
-
-  if (body.predictions) {
-    await prisma.surpriseme_predictions.create({
-      data: {
-        profile_id: profile.id,
-        predicted_attractiveness: body.predictions.predicted_attractiveness,
-        predicted_confidence: body.predictions.predicted_confidence,
-        predicted_body_type: body.predictions.predicted_body_type
+    await prisma.surpriseme_users.upsert({
+      where: { id: user.id },
+      create: {
+        id: user.id,
+        email: user.email ?? `${user.id}@placeholder.local`,
+        display_name: body.display_name,
+        gender_identity: body.gender_identity,
+        sexual_orientation: body.sexual_orientation,
+        age_range: body.age_range,
+        country: body.country
+      },
+      update: {
+        email: user.email ?? `${user.id}@placeholder.local`,
+        display_name: body.display_name,
+        gender_identity: body.gender_identity,
+        sexual_orientation: body.sexual_orientation,
+        age_range: body.age_range,
+        country: body.country
       }
     })
-  }
+    debugLog(event, requestId, 'user.upsert.ok')
 
-  return { profile, mode: existingProfile ? 'updated' : 'created' }
+    const existingProfile = await prisma.surpriseme_profiles.findFirst({
+      where: { user_id: user.id },
+      orderBy: { created_at: 'asc' }
+    })
+    debugLog(event, requestId, 'profile.lookup.ok', { found: Boolean(existingProfile) })
+
+    const profile = existingProfile
+      ? await prisma.surpriseme_profiles.update({
+          where: { id: existingProfile.id },
+          data: {
+            bio: body.bio,
+            height_range: body.height_range,
+            body_type: body.body_type,
+            fitness_level: body.fitness_level,
+            hair_colour: body.hair_colour,
+            eye_colour: body.eye_colour,
+            ethnicity: body.ethnicity,
+            is_public: body.is_public
+          }
+        })
+      : await prisma.surpriseme_profiles.create({
+          data: {
+            user_id: user.id,
+            bio: body.bio,
+            height_range: body.height_range,
+            body_type: body.body_type,
+            fitness_level: body.fitness_level,
+            hair_colour: body.hair_colour,
+            eye_colour: body.eye_colour,
+            ethnicity: body.ethnicity,
+            is_public: body.is_public
+          }
+        })
+    debugLog(event, requestId, 'profile.save.ok', { profileId: profile.id, mode: existingProfile ? 'updated' : 'created' })
+
+    if (body.predictions) {
+      await prisma.surpriseme_predictions.create({
+        data: {
+          profile_id: profile.id,
+          predicted_attractiveness: body.predictions.predicted_attractiveness,
+          predicted_confidence: body.predictions.predicted_confidence,
+          predicted_body_type: body.predictions.predicted_body_type
+        }
+      })
+      debugLog(event, requestId, 'prediction.create.ok')
+    }
+
+    return { profile, mode: existingProfile ? 'updated' : 'created', request_id: requestId }
+  } catch (error: any) {
+    debugError(event, requestId, 'failed', error)
+    if (error?.statusCode) throw error
+    throw createError({
+      statusCode: 500,
+      statusMessage: debugStatusMessage(event, requestId, 'Failed to save profile')
+    })
+  }
 })

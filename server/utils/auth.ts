@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { getSupabaseServiceClient } from './supabase'
+import { getSupabaseAuthClient } from './supabase'
 
 export type AuthUser = {
   id: string
@@ -20,7 +20,7 @@ export async function requireAuthUser(event: H3Event): Promise<AuthUser> {
     throw createError({ statusCode: 401, statusMessage: 'Missing Bearer token' })
   }
 
-  const supabase = getSupabaseServiceClient()
+  const supabase = getSupabaseAuthClient()
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid auth token' })
