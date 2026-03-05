@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model surpriseme_users {
+  id                 String               @id @db.Uuid
+  email              String               @unique
+  display_name       String
+  gender_identity    String?
+  sexual_orientation String?
+  age_range          String?
+  country            String?
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles           surpriseme_profiles[]
+
+  @@index([created_at])
+}
+
+model surpriseme_profiles {
+  id             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String                      @db.Uuid
+  bio            String?
+  height_range   String?
+  body_type      String?
+  fitness_level  String?
+  hair_colour    String?
+  eye_colour     String?
+  ethnicity      String?
+  is_public      Boolean                     @default(true)
+  created_at     DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime                    @default(now()) @updatedAt @db.Timestamptz(6)
+  user           surpriseme_users            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  images         surpriseme_profile_images[]
+  predictions    surpriseme_predictions[]
+  questionnaires surpriseme_questionnaires[]
+
+  @@index([user_id])
+  @@index([is_public])
+}
+
+model surpriseme_profile_images {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id   String              @db.Uuid
+  image_url    String
+  storage_path String
+  created_at   DateTime            @default(now()) @db.Timestamptz(6)
+  profile      surpriseme_profiles @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id])
+}
+
+model surpriseme_predictions {
+  id                       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id               String              @db.Uuid
+  predicted_attractiveness String?
+  predicted_confidence     String?
+  predicted_body_type      String?
+  created_at               DateTime            @default(now()) @db.Timestamptz(6)
+  profile                  surpriseme_profiles @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id])
+}
+
+model surpriseme_questionnaires {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id            String              @db.Uuid
+  contributor_id        String              @db.Uuid
+  attractiveness_rating String
+  body_type_perception  String
+  confidence_perception String
+  approachability       String
+  comment               String?
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  profile               surpriseme_profiles @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, contributor_id])
+  @@index([profile_id])
+  @@index([contributor_id])
+}
