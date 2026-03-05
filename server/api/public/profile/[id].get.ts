@@ -28,5 +28,32 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Profile not found' })
   }
 
-  return profile
+  const imageIds = profile.images.map((image) => image.id)
+  const grouped = imageIds.length
+    ? await prisma.surpriseme_image_ratings.groupBy({
+        by: ['image_id'],
+        where: { image_id: { in: imageIds } },
+        _avg: { rating: true },
+        _count: { _all: true }
+      })
+    : []
+
+  const statsByImageId = new Map(
+    grouped.map((g) => [
+      g.image_id,
+      {
+        avg_rating: Number((g._avg.rating ?? 0).toFixed(2)),
+        rating_count: g._count._all
+      }
+    ])
+  )
+
+  return {
+    ...profile,
+    images: profile.images.map((image) => ({
+      ...image,
+      avg_rating: statsByImageId.get(image.id)?.avg_rating ?? null,
+      rating_count: statsByImageId.get(image.id)?.rating_count ?? 0
+    }))
+  }
 })

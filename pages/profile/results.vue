@@ -66,6 +66,20 @@ onMounted(fetchResults)
         <h2 class="text-3xl">Poll Aggregates</h2>
         <pre class="mt-2 overflow-auto rounded-lg border-2 border-black bg-[#fffce6] p-3 text-sm font-bold">{{ result.aggregates }}</pre>
       </div>
+
+      <div class="pop-panel">
+        <h2 class="text-3xl">Image Ratings</h2>
+        <div v-if="result.image_ratings?.length" class="mt-3 grid gap-3 sm:grid-cols-2">
+          <article v-for="img in result.image_ratings" :key="img.image_id" class="rounded-xl border-4 border-black bg-white p-3">
+            <img :src="img.image_url" alt="Rated image" class="h-44 w-full rounded-lg border-2 border-black object-cover" />
+            <p class="mt-2 text-sm font-extrabold uppercase">
+              Avg: {{ img.avg_rating ?? 'No ratings' }}
+              <span v-if="img.rating_count">({{ img.rating_count }} votes)</span>
+            </p>
+          </article>
+        </div>
+        <p v-else class="mt-2 text-sm font-bold">No image ratings yet.</p>
+      </div>
     </div>
   </section>
 </template>

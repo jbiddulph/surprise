@@ -8,11 +8,25 @@ export default defineEventHandler(async () => {
     throw createError({ statusCode: 404, statusMessage: 'Not found' })
   }
 
+  let databaseHost: string | null = null
+  let databasePort: string | null = null
+  try {
+    if (config.databaseUrl) {
+      const parsed = new URL(config.databaseUrl)
+      databaseHost = parsed.hostname
+      databasePort = parsed.port || null
+    }
+  } catch {
+    databaseHost = 'invalid-url'
+  }
+
   const env = {
     hasDatabaseUrl: Boolean(config.databaseUrl),
     hasSupabaseUrl: Boolean(config.supabaseUrl),
     hasSupabaseAnonKey: Boolean(config.supabaseAnonKey),
-    hasSupabaseServiceRoleKey: Boolean(config.supabaseServiceRoleKey)
+    hasSupabaseServiceRoleKey: Boolean(config.supabaseServiceRoleKey),
+    databaseHost,
+    databasePort
   }
 
   let dbConnectOk = false

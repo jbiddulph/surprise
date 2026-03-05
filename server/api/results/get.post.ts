@@ -53,6 +53,31 @@ export default defineEventHandler(async (event) => {
   const payload = rows[0]?.payload ?? {}
   const aggregates = payload.aggregates ?? {}
   const prediction = payload.prediction ?? {}
+  const images = await prisma.surpriseme_profile_images.findMany({
+    where: { profile_id: profile.id },
+    select: { id: true, image_url: true },
+    orderBy: { created_at: 'asc' }
+  })
+
+  const imageIds = images.map((img) => img.id)
+  const groupedImageRatings = imageIds.length
+    ? await prisma.surpriseme_image_ratings.groupBy({
+        by: ['image_id'],
+        where: { profile_id: profile.id, image_id: { in: imageIds } },
+        _avg: { rating: true },
+        _count: { _all: true }
+      })
+    : []
+
+  const ratingsByImageId = new Map(
+    groupedImageRatings.map((g) => [
+      g.image_id,
+      {
+        avg_rating: Number((g._avg.rating ?? 0).toFixed(2)),
+        rating_count: g._count._all
+      }
+    ])
+  )
 
   return {
     ...payload,
@@ -70,6 +95,12 @@ export default defineEventHandler(async (event) => {
         actual: topLabel(aggregates.body_type_perception)
       }
     },
+    image_ratings: images.map((image) => ({
+      image_id: image.id,
+      image_url: image.image_url,
+      avg_rating: ratingsByImageId.get(image.id)?.avg_rating ?? null,
+      rating_count: ratingsByImageId.get(image.id)?.rating_count ?? 0
+    })),
     confidence_boost_summary: createSummary(aggregates, prediction)
   }
 })
