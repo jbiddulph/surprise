@@ -91,12 +91,12 @@ async function voteImage(imageId: string, score: number) {
         <span class="pop-chip">{{ profile.height_range || 'Unknown height range' }}</span>
       </div>
 
-      <div v-if="profile.images?.length" class="stagger-pop mt-5 grid gap-4 sm:grid-cols-2">
+      <div v-if="profile.images?.length" class="stagger-pop mx-auto mt-5 grid max-w-3xl gap-4">
         <article v-for="image in profile.images" :key="image.id" class="rounded-xl border-4 border-black bg-white p-3">
           <img
             :src="image.image_url"
             alt="Profile image"
-            class="h-52 w-full rounded-lg border-2 border-black object-cover"
+            class="mx-auto h-auto w-full rounded-lg border-2 border-black object-cover"
             @load="imageStatus[image.id] = 'loaded'"
             @error="imageStatus[image.id] = 'error'"
           />
