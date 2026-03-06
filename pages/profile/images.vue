@@ -4,7 +4,7 @@ definePageMeta({
 })
 
 import { useAuthStore } from '~/stores/auth'
-import { useApiAuthHeaders } from '~/composables/useApi'
+import { useApiAuthHeadersSafe } from '~/composables/useApi'
 
 const auth = useAuthStore()
 const message = ref('')
@@ -16,8 +16,9 @@ const images = ref<Array<{ id: string; image_url: string; category: string; appr
 
 async function loadProfileStatus() {
   try {
+    const headers = await useApiAuthHeadersSafe()
     const data = await $fetch<{ profile: any; images?: Array<{ id: string; image_url: string; category: string; approval_status: string }> }>('/api/profile/me', {
-      headers: useApiAuthHeaders()
+      headers
     })
     hasProfile.value = Boolean(data.profile)
     images.value = data.images || []
@@ -52,9 +53,10 @@ async function uploadFile(event: Event) {
   const base64 = dataUrl.split(',')[1]
 
   try {
+    const headers = await useApiAuthHeadersSafe()
     await $fetch('/api/profile/images/upload', {
       method: 'POST',
-      headers: useApiAuthHeaders(),
+      headers,
       body: {
         filename: file.name,
         content_type: file.type || 'image/jpeg',

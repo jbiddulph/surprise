@@ -47,6 +47,9 @@ export async function optionalAuthUser(event: H3Event): Promise<AuthUser | null>
 
 export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
   const user = await requireAuthUser(event)
+  const config = useRuntimeConfig()
+  const debugEnabled = String(config.debugApi).toLowerCase() === 'true'
+  const requestId = getHeader(event, 'x-request-id') || crypto.randomUUID()
   let record: { role: string } | null = null
   try {
     record = await prisma.surpriseme_users.findUnique({
@@ -62,11 +65,20 @@ export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
     if (isMissingRoleColumn) {
       throw createError({
         statusCode: 500,
-        statusMessage: 'Admin role schema missing. Apply latest database migrations.'
+        statusMessage: debugEnabled
+          ? `Admin role schema missing. Apply latest database migrations. [request_id=${requestId}]`
+          : 'Admin role schema missing. Apply latest database migrations.'
       })
     }
 
-    throw error
+    if (debugEnabled) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Admin role check failed: ${message || 'unknown'} [request_id=${requestId}]`
+      })
+    }
+
+    throw createError({ statusCode: 500, statusMessage: 'Admin role check failed' })
   }
 
   if (!record || record.role !== 'admin') {

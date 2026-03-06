@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
-import { useApiAuthHeaders } from '~/composables/useApi'
+import { useApiAuthHeadersSafe } from '~/composables/useApi'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -34,9 +34,10 @@ async function submit() {
   }
 
   try {
+    const headers = await useApiAuthHeadersSafe()
     await $fetch('/api/questionnaire/submit', {
       method: 'POST',
-      headers: useApiAuthHeaders(),
+      headers,
       body: {
         profile_id: route.params.id,
         ...form
@@ -49,7 +50,7 @@ async function submit() {
         images.map((image: any) =>
           $fetch('/api/image-rating/submit', {
             method: 'POST',
-            headers: useApiAuthHeaders(),
+            headers,
             body: {
               profile_id: route.params.id,
               image_id: image.id,

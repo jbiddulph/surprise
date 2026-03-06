@@ -4,7 +4,7 @@ definePageMeta({
 })
 
 import { useAuthStore } from '~/stores/auth'
-import { useApiAuthHeaders } from '~/composables/useApi'
+import { useApiAuthHeadersSafe } from '~/composables/useApi'
 
 const auth = useAuthStore()
 const message = ref('')
@@ -38,12 +38,13 @@ async function loadMyProfile() {
   error.value = ''
 
   try {
+    const headers = await useApiAuthHeadersSafe()
     const data = await $fetch<{
       account: any
       profile: any
       prediction: any
     }>('/api/profile/me', {
-      headers: useApiAuthHeaders()
+      headers
     })
 
     hasProfile.value = Boolean(data.profile)
@@ -89,13 +90,15 @@ async function submit() {
   }
 
   try {
+    const headers = await useApiAuthHeadersSafe()
     const res = await $fetch<{ mode: 'created' | 'updated' }>('/api/profile/create', {
       method: 'POST',
-      headers: useApiAuthHeaders(),
+      headers,
       body: form
     })
     hasProfile.value = true
     message.value = res.mode === 'updated' ? 'Profile updated successfully.' : 'Profile created successfully.'
+    await loadMyProfile()
   } catch (e: any) {
     error.value = e?.data?.statusMessage || 'Failed to save profile'
   }

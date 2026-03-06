@@ -4,7 +4,7 @@ definePageMeta({
 })
 
 import { useAuthStore } from '~/stores/auth'
-import { useApiAuthHeaders } from '~/composables/useApi'
+import { useApiAuthHeadersSafe } from '~/composables/useApi'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -20,7 +20,7 @@ async function fetchResults() {
   try {
     result.value = await $fetch('/api/results/get', {
       method: 'POST',
-      headers: useApiAuthHeaders(),
+      headers: await useApiAuthHeadersSafe(),
       body: {}
     })
     hasProfile.value = true

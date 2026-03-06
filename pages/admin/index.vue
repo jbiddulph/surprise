@@ -3,7 +3,7 @@ definePageMeta({
   middleware: ['admin']
 })
 
-import { useApiAuthHeaders } from '~/composables/useApi'
+import { useApiAuthHeadersSafe } from '~/composables/useApi'
 
 type PendingImage = {
   id: string
@@ -29,7 +29,7 @@ async function loadPending() {
   error.value = ''
   try {
     items.value = await $fetch('/api/admin/images/pending', {
-      headers: useApiAuthHeaders()
+      headers: await useApiAuthHeadersSafe()
     })
   } catch (e: any) {
     error.value = e?.data?.statusMessage || 'Failed to load pending images'
@@ -42,7 +42,7 @@ async function review(imageId: string, action: 'approve' | 'reject') {
   try {
     await $fetch('/api/admin/images/review', {
       method: 'POST',
-      headers: useApiAuthHeaders(),
+      headers: await useApiAuthHeadersSafe(),
       body: { image_id: imageId, action }
     })
     await loadPending()
