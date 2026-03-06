@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { getSupabaseAuthClient } from './supabase'
 import { prisma } from './prisma'
+import { debugErrorSummary } from './debug'
 
 export type AuthUser = {
   id: string
@@ -74,7 +75,7 @@ export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
     if (debugEnabled) {
       throw createError({
         statusCode: 500,
-        statusMessage: `Admin role check failed: ${message || 'unknown'} [request_id=${requestId}]`
+        statusMessage: `Admin role check failed: ${debugErrorSummary(error)} [request_id=${requestId}]`
       })
     }
 
@@ -82,7 +83,12 @@ export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
   }
 
   if (!record || record.role !== 'admin') {
-    throw createError({ statusCode: 403, statusMessage: 'Admin access required' })
+    throw createError({
+      statusCode: 403,
+      statusMessage: debugEnabled
+        ? `Admin access required (user_role=${record?.role ?? 'missing-user-row'}) [request_id=${requestId}]`
+        : 'Admin access required'
+    })
   }
 
   return user

@@ -41,3 +41,21 @@ export function debugStatusMessage(event: H3Event, requestId: string, fallback: 
   if (!debugEnabled()) return fallback
   return `${fallback} [request_id=${requestId}]`
 }
+
+export function debugErrorSummary(error: unknown) {
+  if (error && typeof error === 'object') {
+    const maybe = error as {
+      code?: string
+      message?: string
+      statusMessage?: string
+      statusCode?: number
+      name?: string
+    }
+
+    const code = maybe.code ? String(maybe.code) : null
+    const message = maybe.statusMessage || maybe.message || maybe.name || 'Unknown error'
+    return code ? `${message} (code=${code})` : String(message)
+  }
+
+  return String(error || 'Unknown error')
+}
