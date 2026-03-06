@@ -5,7 +5,7 @@ import { optionalAuthUser } from '../../utils/auth'
 const schema = z.object({
   profile_id: z.string().uuid(),
   image_id: z.string().uuid(),
-  rating: z.number().int().min(1).max(10),
+  rating: z.number().int().min(0).max(10),
   visitor_token: z.string().min(16).max(120).optional()
 })
 

@@ -8,6 +8,9 @@ const message = ref('')
 const error = ref('')
 const profile = ref<any>(null)
 const imageRatings = reactive<Record<string, number>>({})
+const ratingSaving = reactive<Record<string, boolean>>({})
+const ratingSaved = reactive<Record<string, boolean>>({})
+const scoreOptions = Array.from({ length: 11 }, (_, i) => i)
 
 const form = reactive({
   attractiveness_rating: 'Attractive',
@@ -20,7 +23,39 @@ const form = reactive({
 async function loadProfile() {
   profile.value = await $fetch(`/api/public/profile/${route.params.id}`)
   for (const image of profile.value.images || []) {
-    imageRatings[image.id] = 7
+    imageRatings[image.id] = 0
+    ratingSaving[image.id] = false
+    ratingSaved[image.id] = false
+  }
+}
+
+function buttonColor(score: number) {
+  const hue = 220 - Math.round((220 * score) / 10)
+  return `hsl(${hue} 95% 58%)`
+}
+
+async function voteImage(imageId: string, score: number) {
+  ratingSaving[imageId] = true
+  ratingSaved[imageId] = false
+  imageRatings[imageId] = score
+  error.value = ''
+
+  try {
+    const headers = await useApiAuthHeadersSafe()
+    await $fetch('/api/image-rating/submit', {
+      method: 'POST',
+      headers,
+      body: {
+        profile_id: route.params.id,
+        image_id: imageId,
+        rating: score
+      }
+    })
+    ratingSaved[imageId] = true
+  } catch (e: any) {
+    error.value = e?.data?.statusMessage || 'Failed to save image rating'
+  } finally {
+    ratingSaving[imageId] = false
   }
 }
 
@@ -46,7 +81,7 @@ async function submit() {
 
     const images = profile.value?.images || []
     if (images.length) {
-      await Promise.all(
+      const settled = await Promise.allSettled(
         images.map((image: any) =>
           $fetch('/api/image-rating/submit', {
             method: 'POST',
@@ -54,11 +89,17 @@ async function submit() {
             body: {
               profile_id: route.params.id,
               image_id: image.id,
-              rating: Number(imageRatings[image.id] || 7)
+              rating: Number(imageRatings[image.id] ?? 0)
             }
           })
         )
       )
+
+      const failed = settled.filter((result) => result.status === 'rejected').length
+      if (failed > 0) {
+        message.value = `Feedback saved. ${failed} image rating(s) failed to save.`
+        return
+      }
     }
 
     message.value = 'Thanks for contributing positive feedback and image ratings.'
@@ -115,14 +156,30 @@ onMounted(loadProfile)
       </label>
 
       <div v-if="profile?.images?.length" class="space-y-3">
-        <h2 class="text-3xl">Rate Images (1-10)</h2>
+        <h2 class="text-3xl">Rate Images (0-10)</h2>
         <div class="stagger-pop grid gap-3 sm:grid-cols-2">
           <article v-for="image in profile.images" :key="image.id" class="rounded-xl border-4 border-black bg-white p-3">
             <img :src="image.image_url" alt="Profile image" class="h-44 w-full rounded-lg border-2 border-black object-cover" />
-            <label class="mt-2 block">
-              <span class="mb-1 block text-xs font-extrabold uppercase">Your rating</span>
-              <input v-model.number="imageRatings[image.id]" min="1" max="10" type="number" class="pop-input" />
-            </label>
+            <div class="mt-3">
+              <span class="mb-2 block text-xs font-extrabold uppercase">Tap your rating</span>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="score in scoreOptions"
+                  :key="`${image.id}-${score}`"
+                  type="button"
+                  class="pop-score-btn"
+                  :class="{ 'is-selected': imageRatings[image.id] === score, 'is-loading': ratingSaving[image.id] }"
+                  :style="{ background: buttonColor(score) }"
+                  :disabled="ratingSaving[image.id]"
+                  @click="voteImage(image.id, score)"
+                >
+                  {{ score }}
+                </button>
+              </div>
+            </div>
+            <p v-if="ratingSaved[image.id]" class="mt-2 text-xs font-extrabold uppercase text-[#0f8a00]">
+              Saved {{ imageRatings[image.id] }}/10
+            </p>
           </article>
         </div>
       </div>
@@ -133,3 +190,35 @@ onMounted(loadProfile)
     </form>
   </section>
 </template>
+
+<style scoped>
+.pop-score-btn {
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 2px solid #000;
+  border-radius: 0.6rem;
+  color: #fff;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: 2px 2px 0 #000;
+  transform: translateY(0);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.pop-score-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 #000;
+  filter: saturate(1.1);
+}
+
+.pop-score-btn.is-selected {
+  box-shadow: 0 0 0 3px #000 inset, 4px 4px 0 #000;
+  transform: translateY(-2px) scale(1.05);
+}
+
+.pop-score-btn:disabled,
+.pop-score-btn.is-loading {
+  opacity: 0.7;
+}
+</style>

@@ -25,20 +25,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'You cannot submit feedback on your own profile' })
   }
 
-  const existing = await prisma.surpriseme_questionnaires.findUnique({
-    where: { profile_id_contributor_id: { profile_id: body.profile_id, contributor_id: user.id } }
-  })
-
-  if (existing) {
-    throw createError({ statusCode: 409, statusMessage: 'You already submitted feedback for this profile' })
-  }
-
   const comment = body.comment ? sanitizeComment(body.comment) : null
 
-  const submission = await prisma.surpriseme_questionnaires.create({
-    data: {
+  const submission = await prisma.surpriseme_questionnaires.upsert({
+    where: { profile_id_contributor_id: { profile_id: body.profile_id, contributor_id: user.id } },
+    create: {
       profile_id: body.profile_id,
       contributor_id: user.id,
+      attractiveness_rating: body.attractiveness_rating,
+      body_type_perception: body.body_type_perception,
+      confidence_perception: body.confidence_perception,
+      approachability: body.approachability,
+      comment
+    },
+    update: {
       attractiveness_rating: body.attractiveness_rating,
       body_type_perception: body.body_type_perception,
       confidence_perception: body.confidence_perception,
