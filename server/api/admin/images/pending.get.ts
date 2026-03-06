@@ -9,29 +9,65 @@ export default defineEventHandler(async (event) => {
     await requireAdminUser(event)
     debugLog(event, requestId, 'admin.auth.ok')
 
-    const pending = await prisma.surpriseme_profile_images.findMany({
-      where: { approval_status: 'pending' },
-      orderBy: { created_at: 'asc' },
-      select: {
-        id: true,
-        image_url: true,
-        storage_path: true,
-        category: true,
-        created_at: true,
-        profile: {
-          select: {
-            id: true,
-            user: {
-              select: {
-                id: true,
-                display_name: true,
-                email: true
+    let pending: any[] = []
+    try {
+      pending = await prisma.surpriseme_profile_images.findMany({
+        where: { approval_status: 'pending' },
+        orderBy: { created_at: 'asc' },
+        select: {
+          id: true,
+          image_url: true,
+          storage_path: true,
+          category: true,
+          created_at: true,
+          profile: {
+            select: {
+              id: true,
+              user: {
+                select: {
+                  id: true,
+                  display_name: true,
+                  email: true
+                }
               }
             }
           }
         }
-      }
-    })
+      })
+    } catch (error: any) {
+      const message = String(error?.message || '').toLowerCase()
+      const isMissingModerationColumns =
+        error?.code === 'P2022' ||
+        (message.includes('unknown arg') && (message.includes('category') || message.includes('approval_status'))) ||
+        (message.includes('unknown field') && (message.includes('category') || message.includes('approval_status'))) ||
+        (message.includes('column') && (message.includes('category') || message.includes('approval_status')))
+
+      if (!isMissingModerationColumns) throw error
+
+      pending = await prisma.surpriseme_profile_images.findMany({
+        orderBy: { created_at: 'asc' },
+        select: {
+          id: true,
+          image_url: true,
+          storage_path: true,
+          created_at: true,
+          profile: {
+            select: {
+              id: true,
+              user: {
+                select: {
+                  id: true,
+                  display_name: true,
+                  email: true
+                }
+              }
+            }
+          }
+        }
+      })
+
+      pending = pending.map((item) => ({ ...item, category: 'Body (torso)' }))
+    }
     debugLog(event, requestId, 'pending.fetch.ok', { count: pending.length })
 
     return pending

@@ -57,7 +57,10 @@ export default defineEventHandler(async (event) => {
     } catch (error: any) {
       const message = String(error?.message || '').toLowerCase()
       const isMissingModerationColumns =
-        error?.code === 'P2022' || (message.includes('column') && (message.includes('category') || message.includes('approval_status')))
+        error?.code === 'P2022' ||
+        (message.includes('unknown arg') && (message.includes('category') || message.includes('approval_status'))) ||
+        (message.includes('unknown field') && (message.includes('category') || message.includes('approval_status'))) ||
+        (message.includes('column') && (message.includes('category') || message.includes('approval_status')))
 
       if (isMissingModerationColumns) {
         images = await prisma.surpriseme_profile_images.findMany({

@@ -26,12 +26,13 @@ export default defineEventHandler(async (event) => {
       debugError(event, requestId, 'auth.failed', error)
     }
 
-    const dbUser = authUserId
-      ? await prisma.surpriseme_users.findUnique({
-          where: { id: authUserId },
-          select: { id: true, email: true, role: true, created_at: true }
-        })
-      : null
+    const dbUserRows = authUserId
+      ? await prisma.$queryRawUnsafe<Array<{ id: string; email: string | null; role: string | null; created_at: Date | null }>>(
+          'select id, email, role, created_at from public.surpriseme_users where id = $1::uuid limit 1',
+          authUserId
+        )
+      : []
+    const dbUser = dbUserRows[0] ?? null
 
     const adminSchemaColumns = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
       `select column_name

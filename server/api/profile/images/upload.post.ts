@@ -50,15 +50,35 @@ export default defineEventHandler(async (event) => {
 
   const { data: publicData } = supabase.storage.from('surpriseme_profiles').getPublicUrl(storagePath)
 
-  const image = await prisma.surpriseme_profile_images.create({
-    data: {
-      profile_id: profile.id,
-      image_url: publicData.publicUrl,
-      storage_path: storagePath,
-      category: body.category,
-      approval_status: 'pending'
-    }
-  })
+  let image: any
+  try {
+    image = await prisma.surpriseme_profile_images.create({
+      data: {
+        profile_id: profile.id,
+        image_url: publicData.publicUrl,
+        storage_path: storagePath,
+        category: body.category,
+        approval_status: 'pending'
+      }
+    })
+  } catch (error: any) {
+    const message = String(error?.message || '').toLowerCase()
+    const isMissingModerationColumns =
+      error?.code === 'P2022' ||
+      (message.includes('unknown arg') && (message.includes('category') || message.includes('approval_status'))) ||
+      (message.includes('unknown field') && (message.includes('category') || message.includes('approval_status'))) ||
+      (message.includes('column') && (message.includes('category') || message.includes('approval_status')))
+
+    if (!isMissingModerationColumns) throw error
+
+    image = await prisma.surpriseme_profile_images.create({
+      data: {
+        profile_id: profile.id,
+        image_url: publicData.publicUrl,
+        storage_path: storagePath
+      }
+    })
+  }
 
   return { image }
 })

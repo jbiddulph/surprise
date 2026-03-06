@@ -7,24 +7,66 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing profile id' })
   }
 
-  const profile = await prisma.surpriseme_profiles.findFirst({
-    where: { id, is_public: true },
-    select: {
-      id: true,
-      bio: true,
-      body_type: true,
-      fitness_level: true,
-      height_range: true,
-      hair_colour: true,
-      eye_colour: true,
-      user: { select: { display_name: true } },
-      images: {
-        where: { approval_status: 'approved' },
-        select: { id: true, image_url: true, storage_path: true, category: true },
-        orderBy: { created_at: 'asc' }
+  let profile: {
+    id: string
+    bio: string | null
+    body_type: string | null
+    fitness_level: string | null
+    height_range: string | null
+    hair_colour: string | null
+    eye_colour: string | null
+    user: { display_name: string }
+    images: Array<{ id: string; image_url: string; storage_path: string; category?: string | null }>
+  } | null = null
+
+  try {
+    profile = await prisma.surpriseme_profiles.findFirst({
+      where: { id, is_public: true },
+      select: {
+        id: true,
+        bio: true,
+        body_type: true,
+        fitness_level: true,
+        height_range: true,
+        hair_colour: true,
+        eye_colour: true,
+        user: { select: { display_name: true } },
+        images: {
+          where: { approval_status: 'approved' },
+          select: { id: true, image_url: true, storage_path: true, category: true },
+          orderBy: { created_at: 'asc' }
+        }
       }
-    }
-  })
+    })
+  } catch (error: any) {
+    const message = String(error?.message || '').toLowerCase()
+    const isMissingModerationColumns =
+      error?.code === 'P2022' ||
+      (message.includes('unknown arg') && (message.includes('category') || message.includes('approval_status'))) ||
+      (message.includes('unknown field') && (message.includes('category') || message.includes('approval_status'))) ||
+      (message.includes('column') && (message.includes('category') || message.includes('approval_status')))
+
+    if (!isMissingModerationColumns) throw error
+
+    // Backward-compatible path for deployments with stale generated Prisma client or schema.
+    profile = await prisma.surpriseme_profiles.findFirst({
+      where: { id, is_public: true },
+      select: {
+        id: true,
+        bio: true,
+        body_type: true,
+        fitness_level: true,
+        height_range: true,
+        hair_colour: true,
+        eye_colour: true,
+        user: { select: { display_name: true } },
+        images: {
+          select: { id: true, image_url: true, storage_path: true },
+          orderBy: { created_at: 'asc' }
+        }
+      }
+    })
+  }
 
   if (!profile) {
     throw createError({ statusCode: 404, statusMessage: 'Profile not found' })
@@ -75,7 +117,7 @@ export default defineEventHandler(async (event) => {
       return {
         id: image.id,
         image_url: resolvedUrl,
-        category: image.category,
+        category: image.category ?? 'Body (torso)',
         avg_rating: statsByImageId.get(image.id)?.avg_rating ?? null,
         rating_count: statsByImageId.get(image.id)?.rating_count ?? 0
       }

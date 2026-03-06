@@ -22,9 +22,33 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'You cannot rate your own profile images' })
   }
 
-  const image = await prisma.surpriseme_profile_images.findUnique({ where: { id: body.image_id } })
-  if (!image || image.profile_id !== body.profile_id || image.approval_status !== 'approved') {
+  let image: { id: string; profile_id: string; approval_status?: string | null } | null = null
+  try {
+    image = await prisma.surpriseme_profile_images.findUnique({
+      where: { id: body.image_id },
+      select: { id: true, profile_id: true, approval_status: true }
+    })
+  } catch (error: any) {
+    const message = String(error?.message || '').toLowerCase()
+    const isMissingApprovalColumn =
+      error?.code === 'P2022' ||
+      (message.includes('unknown arg') && message.includes('approval_status')) ||
+      (message.includes('unknown field') && message.includes('approval_status')) ||
+      (message.includes('column') && message.includes('approval_status'))
+
+    if (!isMissingApprovalColumn) throw error
+
+    image = await prisma.surpriseme_profile_images.findUnique({
+      where: { id: body.image_id },
+      select: { id: true, profile_id: true }
+    })
+  }
+
+  if (!image || image.profile_id !== body.profile_id) {
     throw createError({ statusCode: 400, statusMessage: 'Image does not belong to profile' })
+  }
+  if (typeof image.approval_status === 'string' && image.approval_status !== 'approved') {
+    throw createError({ statusCode: 400, statusMessage: 'Image is not approved for rating' })
   }
 
   const actorVisitorToken = user ? null : body.visitor_token

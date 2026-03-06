@@ -51,12 +51,13 @@ export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
   const config = useRuntimeConfig()
   const debugEnabled = String(config.debugApi).toLowerCase() === 'true'
   const requestId = getHeader(event, 'x-request-id') || crypto.randomUUID()
-  let record: { role: string } | null = null
+  let role: string | null = null
   try {
-    record = await prisma.surpriseme_users.findUnique({
-      where: { id: user.id },
-      select: { role: true }
-    })
+    const rows = await prisma.$queryRawUnsafe<Array<{ role: string | null }>>(
+      'select role from public.surpriseme_users where id = $1::uuid limit 1',
+      user.id
+    )
+    role = rows[0]?.role ?? null
   } catch (error: any) {
     const message = String(error?.message || '')
     const isMissingRoleColumn =
@@ -82,11 +83,11 @@ export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
     throw createError({ statusCode: 500, statusMessage: 'Admin role check failed' })
   }
 
-  if (!record || record.role !== 'admin') {
+  if (role !== 'admin') {
     throw createError({
       statusCode: 403,
       statusMessage: debugEnabled
-        ? `Admin access required (user_role=${record?.role ?? 'missing-user-row'}) [request_id=${requestId}]`
+        ? `Admin access required (user_role=${role ?? 'missing-user-row'}) [request_id=${requestId}]`
         : 'Admin access required'
     })
   }
