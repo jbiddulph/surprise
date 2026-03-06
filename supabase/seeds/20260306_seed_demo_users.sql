@@ -152,7 +152,7 @@ begin
       updated_at
     )
     values (
-      gen_random_uuid()::text,
+      gen_random_uuid(),
       v_user_id,
       v_user_id::text,
       jsonb_build_object('sub', v_user_id::text, 'email', rec.email),
