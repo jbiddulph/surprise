@@ -10,11 +10,13 @@ const auth = useAuthStore()
 const message = ref('')
 const error = ref('')
 const hasProfile = ref(true)
-const images = ref<Array<{ id: string; image_url: string }>>([])
+const selectedCategory = ref('Body (torso)')
+const categories = ['Boobs', 'Bum', 'Legs', 'Hands', 'Feet', 'Face', 'Hair', 'Body (torso)']
+const images = ref<Array<{ id: string; image_url: string; category: string; approval_status: string }>>([])
 
 async function loadProfileStatus() {
   try {
-    const data = await $fetch<{ profile: any; images?: Array<{ id: string; image_url: string }> }>('/api/profile/me', {
+    const data = await $fetch<{ profile: any; images?: Array<{ id: string; image_url: string; category: string; approval_status: string }> }>('/api/profile/me', {
       headers: useApiAuthHeaders()
     })
     hasProfile.value = Boolean(data.profile)
@@ -56,7 +58,8 @@ async function uploadFile(event: Event) {
       body: {
         filename: file.name,
         content_type: file.type || 'image/jpeg',
-        base64
+        base64,
+        category: selectedCategory.value
       }
     })
 
@@ -79,10 +82,18 @@ onMounted(loadProfileStatus)
         Create your profile first, then upload images.
       </p>
       <input type="file" accept="image/*" class="pop-input" :disabled="!hasProfile" @change="uploadFile" />
+      <label class="block">
+        <span class="mb-1 block text-xs font-extrabold uppercase">Image category</span>
+        <select v-model="selectedCategory" class="pop-select">
+          <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
+        </select>
+      </label>
       <p class="text-sm font-extrabold uppercase">Bucket: surpriseme_profiles, path: profiles/{userId}/{imageId}.jpg</p>
       <div v-if="images.length" class="stagger-pop grid gap-3 sm:grid-cols-2">
         <article v-for="image in images" :key="image.id" class="rounded-xl border-4 border-black bg-white p-2">
           <img :src="image.image_url" alt="Uploaded profile image" class="h-40 w-full rounded-lg border-2 border-black object-cover" />
+          <p class="mt-2 text-xs font-extrabold uppercase">Category: {{ image.category }}</p>
+          <p class="text-xs font-bold uppercase">Status: {{ image.approval_status }}</p>
         </article>
       </div>
       <p v-if="message" class="rounded-lg border-2 border-black bg-[#b8ffcb] px-3 py-2 text-sm font-extrabold">{{ message }}</p>

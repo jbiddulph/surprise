@@ -4,7 +4,19 @@ const profile = ref<any>(null)
 const loading = ref(true)
 const error = ref('')
 const showDebug = ref(false)
+const ratingMessage = ref('')
+const ratingError = ref('')
 const imageStatus = reactive<Record<string, 'pending' | 'loaded' | 'error'>>({})
+const imageRatings = reactive<Record<string, number>>({})
+
+function getVisitorToken() {
+  const key = 'surpriseme_visitor_token'
+  const existing = localStorage.getItem(key)
+  if (existing) return existing
+  const token = crypto.randomUUID()
+  localStorage.setItem(key, token)
+  return token
+}
 
 onMounted(async () => {
   loading.value = true
@@ -13,6 +25,7 @@ onMounted(async () => {
     profile.value = await $fetch(`/api/public/profile/${route.params.id}`)
     for (const image of profile.value?.images || []) {
       imageStatus[image.id] = 'pending'
+      imageRatings[image.id] = 7
     }
   } catch (e: any) {
     error.value = e?.data?.statusMessage || 'Failed to load profile'
@@ -20,6 +33,33 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+async function submitImageRatings() {
+  ratingMessage.value = ''
+  ratingError.value = ''
+
+  if (!profile.value?.images?.length) return
+
+  const visitorToken = getVisitorToken()
+  try {
+    await Promise.all(
+      profile.value.images.map((image: any) =>
+        $fetch('/api/image-rating/submit', {
+          method: 'POST',
+          body: {
+            profile_id: profile.value.id,
+            image_id: image.id,
+            rating: Number(imageRatings[image.id] || 7),
+            visitor_token: visitorToken
+          }
+        })
+      )
+    )
+    ratingMessage.value = 'Your image ratings have been submitted.'
+  } catch (e: any) {
+    ratingError.value = e?.data?.statusMessage || 'Failed to submit image ratings'
+  }
+}
 </script>
 
 <template>
@@ -48,12 +88,21 @@ onMounted(async () => {
             @error="imageStatus[image.id] = 'error'"
           />
           <p class="mt-2 text-sm font-extrabold uppercase">
+            Category: {{ image.category }} ·
             Community score: {{ image.avg_rating ?? 'No ratings yet' }}
             <span v-if="image.rating_count">({{ image.rating_count }} votes)</span>
           </p>
+          <label class="mt-2 block">
+            <span class="mb-1 block text-xs font-extrabold uppercase">Your rating (1-10)</span>
+            <input v-model.number="imageRatings[image.id]" min="1" max="10" type="number" class="pop-input" />
+          </label>
           <p class="mt-1 text-xs font-bold uppercase">Image state: {{ imageStatus[image.id] || 'pending' }}</p>
         </article>
       </div>
+
+      <button v-if="profile.images?.length" type="button" class="pop-btn mt-3" @click="submitImageRatings">Submit image ratings</button>
+      <p v-if="ratingMessage" class="mt-2 rounded-lg border-2 border-black bg-[#b8ffcb] px-3 py-2 text-sm font-extrabold">{{ ratingMessage }}</p>
+      <p v-if="ratingError" class="mt-2 rounded-lg border-2 border-black bg-[#ffb4b4] px-3 py-2 text-sm font-extrabold">{{ ratingError }}</p>
 
       <NuxtLink :to="`/profile/${profile.id}/respond`" class="pop-btn mt-4">Respond</NuxtLink>
     </div>

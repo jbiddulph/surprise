@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
 
   const images = await prisma.surpriseme_profile_images.findMany({
     where: { profile_id: profile.id },
-    select: { id: true, image_url: true, storage_path: true },
+    select: { id: true, image_url: true, storage_path: true, category: true, approval_status: true },
     orderBy: { created_at: 'asc' }
   })
 
@@ -57,7 +57,9 @@ export default defineEventHandler(async (event) => {
 
       return {
         id: image.id,
-        image_url: resolvedUrl
+        image_url: resolvedUrl,
+        category: image.category,
+        approval_status: image.approval_status
       }
     })
   )

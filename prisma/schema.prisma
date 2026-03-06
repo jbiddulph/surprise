@@ -12,6 +12,7 @@ model surpriseme_users {
   id                 String               @id @db.Uuid
   email              String               @unique
   display_name       String
+  role               String               @default("user")
   gender_identity    String?
   sexual_orientation String?
   age_range          String?
@@ -47,32 +48,40 @@ model surpriseme_profiles {
 }
 
 model surpriseme_profile_images {
-  id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  profile_id    String                     @db.Uuid
-  image_url     String
-  storage_path  String
-  created_at    DateTime                   @default(now()) @db.Timestamptz(6)
-  profile       surpriseme_profiles        @relation(fields: [profile_id], references: [id], onDelete: Cascade)
-  image_ratings surpriseme_image_ratings[]
+  id              String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id      String                     @db.Uuid
+  image_url       String
+  storage_path    String
+  category        String                     @default("Body (torso)")
+  approval_status String                     @default("pending")
+  approved_by     String?                    @db.Uuid
+  approved_at     DateTime?                  @db.Timestamptz(6)
+  created_at      DateTime                   @default(now()) @db.Timestamptz(6)
+  profile         surpriseme_profiles        @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  image_ratings   surpriseme_image_ratings[]
 
   @@index([profile_id])
+  @@index([approval_status])
 }
 
 model surpriseme_image_ratings {
-  id             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  image_id       String                   @db.Uuid
-  profile_id     String                   @db.Uuid
-  contributor_id String                   @db.Uuid
+  id             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  image_id       String                      @db.Uuid
+  profile_id     String                      @db.Uuid
+  contributor_id String?                     @db.Uuid
+  visitor_token  String?
   rating         Int
-  created_at     DateTime                 @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
-  image          surpriseme_profile_images @relation(fields: [image_id], references: [id], onDelete: Cascade)
-  profile        surpriseme_profiles      @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  created_at     DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime                    @default(now()) @updatedAt @db.Timestamptz(6)
+  image          surpriseme_profile_images   @relation(fields: [image_id], references: [id], onDelete: Cascade)
+  profile        surpriseme_profiles         @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@unique([image_id, contributor_id])
+  @@unique([image_id, visitor_token])
   @@index([image_id])
   @@index([profile_id])
   @@index([contributor_id])
+  @@index([visitor_token])
 }
 
 model surpriseme_predictions {

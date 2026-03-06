@@ -19,7 +19,8 @@ export default defineEventHandler(async (event) => {
       eye_colour: true,
       user: { select: { display_name: true } },
       images: {
-        select: { id: true, image_url: true, storage_path: true },
+        where: { approval_status: 'approved' },
+        select: { id: true, image_url: true, storage_path: true, category: true },
         orderBy: { created_at: 'asc' }
       }
     }
@@ -74,6 +75,7 @@ export default defineEventHandler(async (event) => {
       return {
         id: image.id,
         image_url: resolvedUrl,
+        category: image.category,
         avg_rating: statsByImageId.get(image.id)?.avg_rating ?? null,
         rating_count: statsByImageId.get(image.id)?.rating_count ?? 0
       }

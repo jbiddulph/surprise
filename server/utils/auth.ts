@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { getSupabaseAuthClient } from './supabase'
+import { prisma } from './prisma'
 
 export type AuthUser = {
   id: string
@@ -12,6 +13,10 @@ function readBearerToken(event: H3Event) {
   const [type, token] = header.split(' ')
   if (type?.toLowerCase() !== 'bearer' || !token) return null
   return token
+}
+
+export function getBearerToken(event: H3Event) {
+  return readBearerToken(event)
 }
 
 export async function requireAuthUser(event: H3Event): Promise<AuthUser> {
@@ -27,4 +32,29 @@ export async function requireAuthUser(event: H3Event): Promise<AuthUser> {
   }
 
   return { id: data.user.id, email: data.user.email }
+}
+
+export async function optionalAuthUser(event: H3Event): Promise<AuthUser | null> {
+  const token = readBearerToken(event)
+  if (!token) return null
+
+  const supabase = getSupabaseAuthClient()
+  const { data, error } = await supabase.auth.getUser(token)
+  if (error || !data.user) return null
+
+  return { id: data.user.id, email: data.user.email }
+}
+
+export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
+  const user = await requireAuthUser(event)
+  const record = await prisma.surpriseme_users.findUnique({
+    where: { id: user.id },
+    select: { role: true }
+  })
+
+  if (!record || record.role !== 'admin') {
+    throw createError({ statusCode: 403, statusMessage: 'Admin access required' })
+  }
+
+  return user
 }

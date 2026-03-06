@@ -8,7 +8,8 @@ const schema = z.object({
   profile_id: z.string().uuid().optional(),
   filename: z.string().min(1).max(120),
   content_type: z.string().min(3).max(80),
-  base64: z.string().min(1)
+  base64: z.string().min(1),
+  category: z.enum(['Boobs', 'Bum', 'Legs', 'Hands', 'Feet', 'Face', 'Hair', 'Body (torso)']).default('Body (torso)')
 })
 
 function extensionFromType(contentType: string) {
@@ -53,7 +54,9 @@ export default defineEventHandler(async (event) => {
     data: {
       profile_id: profile.id,
       image_url: publicData.publicUrl,
-      storage_path: storagePath
+      storage_path: storagePath,
+      category: body.category,
+      approval_status: 'pending'
     }
   })
 
