@@ -47,10 +47,27 @@ export async function optionalAuthUser(event: H3Event): Promise<AuthUser | null>
 
 export async function requireAdminUser(event: H3Event): Promise<AuthUser> {
   const user = await requireAuthUser(event)
-  const record = await prisma.surpriseme_users.findUnique({
-    where: { id: user.id },
-    select: { role: true }
-  })
+  let record: { role: string } | null = null
+  try {
+    record = await prisma.surpriseme_users.findUnique({
+      where: { id: user.id },
+      select: { role: true }
+    })
+  } catch (error: any) {
+    const message = String(error?.message || '')
+    const isMissingRoleColumn =
+      error?.code === 'P2022' ||
+      (message.toLowerCase().includes('role') && message.toLowerCase().includes('column'))
+
+    if (isMissingRoleColumn) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Admin role schema missing. Apply latest database migrations.'
+      })
+    }
+
+    throw error
+  }
 
   if (!record || record.role !== 'admin') {
     throw createError({ statusCode: 403, statusMessage: 'Admin access required' })
