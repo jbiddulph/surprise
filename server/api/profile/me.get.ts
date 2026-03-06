@@ -32,11 +32,35 @@ export default defineEventHandler(async (event) => {
     orderBy: { created_at: 'desc' }
   })
 
-  const images = await prisma.surpriseme_profile_images.findMany({
-    where: { profile_id: profile.id },
-    select: { id: true, image_url: true, storage_path: true, category: true, approval_status: true },
-    orderBy: { created_at: 'asc' }
-  })
+  let images: Array<{
+    id: string
+    image_url: string
+    storage_path: string
+    category?: string | null
+    approval_status?: string | null
+  }> = []
+
+  try {
+    images = await prisma.surpriseme_profile_images.findMany({
+      where: { profile_id: profile.id },
+      select: { id: true, image_url: true, storage_path: true, category: true, approval_status: true },
+      orderBy: { created_at: 'asc' }
+    })
+  } catch (error: any) {
+    const message = String(error?.message || '').toLowerCase()
+    const isMissingModerationColumns =
+      error?.code === 'P2022' || (message.includes('column') && (message.includes('category') || message.includes('approval_status')))
+
+    if (isMissingModerationColumns) {
+      images = await prisma.surpriseme_profile_images.findMany({
+        where: { profile_id: profile.id },
+        select: { id: true, image_url: true, storage_path: true },
+        orderBy: { created_at: 'asc' }
+      })
+    } else {
+      throw error
+    }
+  }
 
   let supabase: ReturnType<typeof getSupabaseServiceClient> | null = null
   try {
@@ -58,8 +82,8 @@ export default defineEventHandler(async (event) => {
       return {
         id: image.id,
         image_url: resolvedUrl,
-        category: image.category,
-        approval_status: image.approval_status
+        category: image.category ?? 'Body (torso)',
+        approval_status: image.approval_status ?? 'approved'
       }
     })
   )

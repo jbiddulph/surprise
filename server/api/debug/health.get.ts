@@ -38,6 +38,12 @@ export default defineEventHandler(async () => {
     surpriseme_predictions: false,
     surpriseme_questionnaires: false
   }
+  let columns: Record<string, boolean> = {
+    users_role: false,
+    images_category: false,
+    images_approval_status: false,
+    image_ratings_visitor_token: false
+  }
 
   try {
     await prisma.$queryRawUnsafe('select 1')
@@ -55,6 +61,24 @@ export default defineEventHandler(async () => {
       surpriseme_predictions: found.has('surpriseme_predictions'),
       surpriseme_questionnaires: found.has('surpriseme_questionnaires')
     }
+
+    const cols = await prisma.$queryRawUnsafe<Array<{ table_name: string; column_name: string }>>(
+      `select table_name, column_name
+       from information_schema.columns
+       where table_schema='public'
+         and (
+           (table_name='surpriseme_users' and column_name='role') or
+           (table_name='surpriseme_profile_images' and column_name in ('category','approval_status')) or
+           (table_name='surpriseme_image_ratings' and column_name='visitor_token')
+         )`
+    )
+    const colKey = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
+    columns = {
+      users_role: colKey.has('surpriseme_users.role'),
+      images_category: colKey.has('surpriseme_profile_images.category'),
+      images_approval_status: colKey.has('surpriseme_profile_images.approval_status'),
+      image_ratings_visitor_token: colKey.has('surpriseme_image_ratings.visitor_token')
+    }
   } catch (error: any) {
     dbError = error?.message || 'Unknown database error'
   }
@@ -65,7 +89,8 @@ export default defineEventHandler(async () => {
     db: {
       connectOk: dbConnectOk,
       error: dbError,
-      tables
+      tables,
+      columns
     }
   }
 })
